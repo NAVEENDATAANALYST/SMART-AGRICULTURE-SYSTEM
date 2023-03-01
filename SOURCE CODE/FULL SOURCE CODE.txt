@@ -1,0 +1,90 @@
+#define BLYNK_PRINT Serial
+#include <OneWire.h>
+#include <SPI.h>
+#include <BlynkSimpleEsp8266.h>
+#include <DHT.h>
+#include <DallasTemperature.h>
+#define ONE_WIRE_BUS 2
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+char auth[] ="IbAPkx4iO2W4q7YVX_o3BjMsfOhh2c3I";
+char ssid[] = "random";
+char pass[] = "12345678";
+
+#define DHTPIN 2
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+SimpleTimer timer;
+void sendSensor()
+{
+float h = dht.readHumidity();
+float t = dht.readTemperature();
+
+
+if (isnan(h) || isnan(t)) {
+Serial.println("Failed to read from DHT sensor!");
+return;
+}
+
+Blynk.virtualWrite(V5, h); //V5 is for Humidity
+Blynk.virtualWrite(V6, t); //V6 is for Temperature
+}
+void setup()
+{
+Serial.begin(9600);
+dht.begin();
+
+timer.setInterval(1000L, sendSensor);
+Blynk.begin(auth, ssid, pass);
+sensors.begin();
+}
+int sensor=0;
+int relativeHumidity=0;
+int Troom = 25;
+int phneutral = 7;
+int ph = 0;
+int measuredValue=0;
+int minRelativeHumidity = 60,maxRelativeHumidity = 80;   // Range of optimal humidity values for rice crop
+float phMin = 6.0,phMax=6.4;                             // Range of optimal PH values for rice crop
+float Tmin = 10, Tmax = 12;                              // Range of optimal Temperature values for rice crop
+float minOptimalValue = 0;
+float maxOptimalValue = 0;
+
+void sendTemps()
+{
+sensor=analogRead(A0);
+relativeHumidity=150-map(sensor,0,1023,0,330);
+
+delay(1000);
+sensors.requestTemperatures();
+float temp = sensors.getTempCByIndex(0);
+Serial.println(temp);
+Serial.print("moisture = ");
+Serial.print(relativeHumidity);
+Serial.println("%");
+minOptimalValue = 0.0625*(Tmin-Troom) + 0.5*(phMin-phneutral) + 0.4375*(maxRelativeHumidity/10);
+maxOptimalValue = 0.0625*(Tmax-Troom) + 0.5*(phMax-phneutral) + 0.4375*(minRelativeHumidity/10);
+if(measuredValue>=minOptimalValue && measuredValue<=maxOptimalValue)
+{
+  Serial.print("Minimum Optimal Value : ");
+  Serial.println(minOptimalValue);
+  Serial.print("Maximum Optimal Value : ");
+  Serial.println(maxOptimalValue);
+  Serial.print("Measured Value : ");
+  Serial.println(measuredValue);
+  Serial.println("Conditions are suitable for planting the required crop");
+}
+//while(relativeHumidity<=minRelativeHumidity)
+//{
+//  digit
+//}
+Blynk.virtualWrite(V1, temp);
+Blynk.virtualWrite(V2,relativeHumidity);
+delay(1000);
+}
+void loop()
+{
+Blynk.run();
+timer.run();
+sendTemps();
+}
